@@ -1,0 +1,400 @@
+WINE ANALYSIS by JAN KIERZYK
+========================================================
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+knitr::opts_chunk$set(fig.width=9,fig.height=5,fig.path='Figs/',
+                      fig.align='center',tidy=TRUE,
+                      echo=FALSE,warning=FALSE,message=FALSE)
+library(ggplot2)
+library(PerformanceAnalytics)
+library(reshape2)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+wines <- read.csv("wineQualityWhites.csv", row.names=1)
+```
+
+
+In this report I will analyse a data set of almost 5000 white wines with their quality scores and attributes.
+
+# Univariate Plots Section
+
+```{r echo=FALSE}
+summary(wines)
+```
+
+This summary shows the range of each attribute and their statistics.
+ For example, pH of tested white wines is between 2.72 and 3.82 with mean of 3.19
+ 
+```{r echo=FALSE}
+dim(wines)
+```
+
+```{r echo=FALSE}
+str(wines)
+```
+ 
+ Almost all columns are numeric with except for quality that's an integer. 
+ 
+```{r echo=FALSE}
+head(wines)
+
+```
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=quality))+
+  geom_histogram(bins=8, fill='lightblue')+
+  ggtitle("Count of wines by quality")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Using a simple histogram we can see that the quality ranges between 3 and 10 with over 2000 (almost 50% of all wines) with a quality equal to 6. The histogram presents a normal distribution. What's worth mentioning is the fact that none of the wines received score of 10 - the maximum reaches 9. 
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=total.sulfur.dioxide))+
+  geom_histogram(bins=50, fill='lightblue')+
+  #Bin size needed increasing to 50 to show normal distribution.
+  ggtitle("Count of wines by total sulfur dioxide")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  xlab('Total Sulfur Dioxide (mg/dm^3)')
+
+```
+
+With the bin size increased to 50 we see that the total sulfur dioxide presents a normal distribution. It's worth investigating if quality changes with the increase of alcohol percentage.
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=quality, y=alcohol))+
+  geom_boxplot(aes(group=quality))+
+  ggtitle("Relationship between alcohol content and wine quality")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Boxplots used to show how the alcohol content varies in different quality groups. 
+```
+
+The boxplots show that worst rates wines have quite high alcohol percentage, then with increase of quality, the alcohol decreases to rise again and reach over 12% for wines rated 8 and more. 
+
+```{r echo=FALSE}
+tapply(wines$alcohol, wines$quality, summary)
+```
+
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=volatile.acidity))+
+  geom_histogram(binwidth = 0.04)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("Count of wines by their Volatile Acidity")
+```
+
+Most of the wines fall between values 0.20-0.30 of volatile acidity. It is shown that wines with higher levels of volatile acidity have an unpleasant, vinegar taste. 
+
+```{r echo=FALSE}
+summary(wines$volatile.acidity)
+```
+
+
+Let's see if it's reflected by the quality scores.
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=quality, y=volatile.acidity))+
+  geom_boxplot(aes(group=quality))+
+  ggtitle("Relationship between volatile acidity and wine quality")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Boxplots used to show how volatile acidity changes in each quality group.
+```
+
+Wines with lower quality (below 7) tend to have higher volatile acidity with a lot of wines present outside of the box (having acidity higher than most of the wines with same quality score). According to a website on wine testing: "Our palates are quite sensitive to the presence of volatile acids and for that reason we try to keep their concentrations as low as possible."
+
+
+```{r echo=FALSE}
+chart.Correlation(wines[,c(4,6,7,8,11,12)], histogram=TRUE)
+#Correlation matrix for selected columns - the ones that seem to matter the most  when it comes to quality.
+```
+
+The correlation matrix of selected variables shows that the highest correlation (0.84) is between residual sugar and density which makes sense - the addition of sugar to a solution increases its density.
+The second highest correlation is between density and alcohol - it's a negative correlation meaning that with the increase of density, the alcohol content decreases.
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=alcohol, y=density))+
+  geom_point()+
+  ggtitle("Relationship between alcohol content and density")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(data=wines, aes(x=alcohol, y=density))+
+  geom_point(alpha=0.2)+
+  ylim(NA,c(quantile(wines$density,0.99)))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_smooth(method=lm)
+#The alpha was used to make the graph clear to read, the density needed to be restricted to 99-th quantile because of the outliers. Simple linear model was added to show the negative correlation. 
+```
+
+```{r echo=FALSE}
+wines$fixed.sulfur.dioxide = wines$total.sulfur.dioxide - wines$free.sulfur.dioxide
+#New variable was added by substracting free sulfur dioxide from the total sulfur dioxide to create sulfur dioxide that's fixed.
+```
+
+The total sulfur dioxide represents both free sulfur dioxide and fixed sulfur dioxide - it's worth checking if the fixed sulfur dioxide has any higher correlation to any of the features.
+
+```{r echo=FALSE}
+cormat <- round(cor(wines),2)
+melted_cormat <- melt(cormat)
+ggplot(data=melted_cormat, aes(x=Var1, y=Var2, fill=value))+
+  geom_tile()+
+  labs(fill='Pearson\nCorrelation')+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  scale_fill_distiller(palette="Reds")+
+  theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank())
+#Heatmap was created by first creating a correlation matrix and rounding it up to 2 digits. It was then 'melted' - column and row with their score were transformed to one row serving as Variable1, Variable2 and their value. These rows were then used to create a heatmap. 
+```
+
+The heatmap presents correlation matrix of all features. 
+
+
+# Univariate Analysis
+
+
+### What is the structure of your dataset?
+
+There are 4898 white wines in the data set with 12 features (fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, pH, sulfates, alcohol and quality). Quality is a distinct score between 0 (very bad) and 10 (very excellent).
+
+Observations made so far:
+
+* None of the wines in the data set have a score of 0 or 10 - they fall between values of 3 and 9 with most having a score of 6.
+* Most wines have a volatile acidity between 0.2 and 0.3
+* Higher scored wines have a higher alcohol content.
+* Less dense wines have higher alcohol content.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+Alcohol content and quality - they are strongly correlated (factor of 0.44). It's worth checking what features increase the alcohol content and affect the wine's quality.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+Alcohol seems to be most affected by residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide and density - these features should be analyzed. 
+
+
+### Did you create any new variables from existing variables in the dataset?
+
+I created fixed sulfur dioxide using total sulfur dioxide and free sulfur dioxide.
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+The data set description already informed that there are no missing attribute values - there was no need to drop any rows. The data was pretty clean and tidy - there was no need to perform any operations to clean it. No unusual distributions were found - they were all normal distributions.
+
+
+# Bivariate Plots Section
+
+
+```{r echo=FALSE, Bivariate_Plots}
+ggplot(data=wines, aes(y=alcohol, x=chlorides))+
+  geom_point()+
+  ggtitle("Relationship between chlorides and alcohol content")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Simple scatterplot used to show the relationship of chlorides and alcohol.
+```
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(data=wines, aes(y=alcohol, x=chlorides))+
+  geom_point(alpha=0.25)+
+  xlim(NA, c(quantile(wines$chlorides, 0.95)))+
+  ggtitle("Relationship between chlorides and alcohol level")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Previous scatterplot with restricted X axis - using a 95-th quantile to avoid outliers. Using alpha to make the graph easier to read.
+```
+
+
+```{r echo=FALSE}
+cor(wines$chlorides, wines$alcohol)
+```
+
+The graph shows that with the increase in chlorides, the alcohol content lowers. The correlation coefficient confirms it - the correlation is negative. Wines with higher content of chlorides are expected to have lower alcohol percentage. 
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(data=wines, aes(y=density, x=fixed.sulfur.dioxide))+
+  geom_point(alpha=0.25)+
+  xlim(NA, c(quantile(wines$fixed.sulfur.dioxide,0.99)))+
+  ylim(NA, c(quantile(wines$density,0.99)))+
+  ggtitle("Density vs Fixed Sulfur Dioxide")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Both of the axis needed restriction on their 99-th quantile to elimiate outliers. Alpha used to help with readability.
+```
+
+```{r echo=FALSE}
+cor(wines$fixed.sulfur.dioxide, wines$density)
+```
+
+With the increase of fixed sulfur dioxide levels the density increases which is proven by correlation coefficient of 0.5. 
+
+The correlation of free sulfur dioxide and density:
+
+```{r echo=FALSE}
+cor(wines$free.sulfur.dioxide, wines$density)
+```
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=quality, y=fixed.sulfur.dioxide))+
+  geom_boxplot(aes(group=quality))+
+  ggtitle("Quality vs Fixed Sulfur Dioxide")+
+  theme(plot.title = element_text(hjust = 0.5))
+#The boxplot was used to illustrate how fixed sulfur dioxide differs in each quality group.
+```
+
+Boxplots show that wines of higher quality have less fixed sulfur dioxide than wines with lower quality. This isn't, however, visible for free sulfur dioxide (the levels of free sulfur dioxide tend to me on the same level for most wines, no matter their quality). There is one wine with quality 3 that has over 
+300 mg / dm^3 of fixed sulfur dioxide and a wine of quality 5 that has almost 
+300 mg / dm^3. This only shows that better wines should have less sulfur dioxide in them.
+
+```{r echo=FALSE}
+tapply(wines$fixed.sulfur.dioxide, wines$quality, summary)
+#Function used to illustrate what boxplot showed earlier, but in actual numbers. 
+```
+
+
+```{r echo=FALSE}
+ggplot(data=wines, aes(x=quality, y=free.sulfur.dioxide))+
+  geom_boxplot(aes(group=quality))+
+  ggtitle("Quality vs Free Sulfur Dioxide")+
+  theme(plot.title = element_text(hjust = 0.5))
+#Boxplot used to illustrate that free sulfur dioxide doesn't differ as much in quality groups as the fixed sulfur dioxide. 
+```
+
+# Bivariate Analysis
+
+* With the increase in chlorides the alcohol level lowers
+* The density increases with the increase of fixed sulfur dioxide levels. It's also true for the free sulfur dioxide but the correlation isn't as strong.
+* Higher levels of sulfur dioxide are associated with lower quality wines - too much sulfur in the wine can make the wine smell bad. 
+
+When looking at the summary of fixed sulfur dioxide for specific quality groups one can easily spot a trend - with the decrease in sulfur dioxide the quality increases. Quality 5 doesn't seem to follow it, but other groups follow the trend. What's interesting is that it's not about how low we can go on sulfur levels when producing wine, as the minimum for quality 9 is way higher than any other group, but it's about the right amount of sulfur dioxide. 
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the data set?
+
+Fixed sulfur dioxide correlates with free sulfur and total sulfur dioxide which makes sense - the variable was created using them 2. 
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+Density increases with the increase in sulfur dioxide levels which seems logical - sulfur dioxide is a dense gas so its presence causes the density to rise. 
+
+### What was the strongest relationship you found?
+
+The strongest relationship seems to be between residual sugar and density and between alcohol and density.
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, warning=FALSE,Multivariate_Plots, fig.height=12}
+wines$sugar.bins <- with(wines, cut(residual.sugar, 3,
+                                    labels = c("Low","Medium","High")))
+ggplot(data=wines, aes(x=free.sulfur.dioxide, y=alcohol))+
+  geom_point(aes(color=sugar.bins))+
+  xlim(0, c(quantile(wines$free.sulfur.dioxide,0.99)))+
+  facet_wrap(quality~., ncol=2)+
+  guides(color=guide_legend(override.aes = list(alpha = 1))) +
+  theme_dark()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+#Scatterplots for alcohol vs free sulfur dioxide for different quality groups with color used to illustrate the level of sugar. Sugar needed to be devided into 3 groups with usage of cut function. 
+```
+
+The better wines seem to have free sulfur dioxide between 20 and 60 
+mg / dm^3. Wines with lower rating have too little/too much sulfur dioxide. Anything above 50 mg / dm^3 can create a bad smell that affects wine rating. Not having enough sulfur dioxide in wine also isn't good. 
+
+Wines with medium sugar levels have higher levels of free sulfur dioxide in the liquid. Most of the wines are in the first sugar bin - low sugar content.. Wines above 45 grams/liter are considered sweet and none of these wines received 9 points on quality scale. They can't be spotted on the graph as most wines have low sugar content.
+
+
+```{r echo=FALSE, warning=FALSE, fig.height=12}
+wines$acid.bins <- with(wines, cut(fixed.acidity, 5,
+                                   labels = c("Low","Medium Low","Medium","Medium High","High")))
+
+ggplot(data=wines, aes(x=free.sulfur.dioxide, y=alcohol))+
+  geom_point(alpha=0.5,aes(color=acid.bins))+
+  xlim(0, c(quantile(wines$free.sulfur.dioxide,0.99)))+
+  facet_wrap(quality~., ncol=2)+
+  scale_color_brewer(type = "div", palette = "RdYlBu",
+                     name="Fixed\nAcidity\nLevels", direction=-1) +
+  guides(color=guide_legend(override.aes = list(alpha = 1))) +
+  theme_dark()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+#Scatterplots for alcohol vs free sulfur dioxide for different quality groups with color used to illustrate the level of acidity. Acidity needed to be devided into 5 groups with usage of cut function. 
+```
+
+It doesn't look like fixed acidity has any impact on any of the variables or on the wine quality. Most wines have fixed acidity between 5.5 and 9. 
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+Free sulfur dioxide and alcohol content definitely proved to have an impact on the quality of wine. Graphs proved that the right amount of sulfur dioxide in a wine can change its rating - it can't be too low (flat taste), nor too high (bad smell). 
+Alcohol percentage helps but can't really help predict the quality as there are both good and bad wines with the same percentage. I would say better wines need at least 10% and the right amount of sulfur dioxide. 
+
+
+### Were there any interesting or surprising interactions between features?
+
+Surprisingly, most of the wines tend to have a very low level of residual sugar - below 11.5  g/liter. Wines with higher sugar levels tend to also have higher sulfur dioxide level which doesn't improve wine's quality, as mentioned earlier. 
+
+
+------
+
+# Final Plots and Summary
+
+
+### Plot One
+```{r echo=FALSE, Plot_One, fig.height=12, warning=FALSE}
+wines$sugar.bins <- with(wines, cut(residual.sugar, 3,
+                                    labels = c("Low","Medium","High")))
+ggplot(data=wines, aes(x=free.sulfur.dioxide, y=alcohol))+
+  geom_point(aes(color=sugar.bins))+
+  xlim(0, c(quantile(wines$free.sulfur.dioxide,0.99)))+
+  xlab("Free Sulfur Dioxide (mg/ dm^3)")+
+  ylab("Alcohol (%)")+
+  facet_wrap(quality~., ncol=2)+
+  guides(color=guide_legend(override.aes = list(alpha = 1))) +
+  theme_dark()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  ggtitle("Relationship between Free Sulfur Dioxide and Alcohol and Sugar Levels by Quality")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+  
+```
+
+### Graph One
+Represents the correlation between free sulfur dioxide, alcohol, wine quality and sugar content. I believe it perfectly illustrates that better wines have a better calculated sulfur dioxide (not too little, not too much), low levels of sugar and an alcohol content between 10 and 14%. All these 3 features must work together to create a wine that has a high rating.
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+ggplot(data=wines, aes(x=quality, y=fixed.sulfur.dioxide))+
+  geom_boxplot(aes(group=quality))+
+  ggtitle("Quality vs Fixed Sulfur Dioxide")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ylab("Fixed Sulfur Dioxide mg / dm^3")
+```
+
+### Graph Two
+This boxplot graph shows how the fixed sulfur dioxide changes across quality groups. It illustrates a downward trend, but group 5 seem to be an exception. It also proves that, even with the best wines from the dataset, sulfur dioxide is important and the goal is not to eliminate it, but to achieve a perfect balance with other chemicals. So by reading a wine label, customer shouldn't look for lowest sulfur dioxide levels. As most of us probably wouldn't be able to feel a difference between 100 and 110 mg / dm^3 - we should leave the wine ratings to experts.
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three, warning=FALSE}
+ggplot(data=wines, aes(y=alcohol, x=chlorides))+
+  geom_point(alpha=0.25)+
+  xlim(NA, c(quantile(wines$chlorides, 0.95)))+
+  xlab("Chlorides (sodium chloride - g / dm^3)")+
+  ylab("Alcohol(%)")+
+  ggtitle("Relationship between chlorides and alcohol level")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Graph Three
+This one was quite unexpected - the increase in chlorides meant a decrease in alcohol percentage. But a simple Google search shows that before any blood tests that involve chlorides a patient should avoid drinking alcohol - this proves that alcohol interferes with chloride levels (https://www.webmd.com/a-to-z-guides/what-is-a-chloride-test) .
+
+------
+
+# Reflection
+
+The dataset wasn't easy to work with - almost 5000 wines made it hard to read some graphs as sometimes it all looked like one big dot. Creating a project in R that I have just started learning wasn't easy. Not only did I have to use a new programming language, I also had to use the knowledge of statistics, data interpretation, data visualization. . 
+
+In the future I would like to merge this dataset with dataset of red wines to be able to compare them and see if the chlorides or sulfur levels differ between white and red wines. It would be interesting to see what exactly causes wines that are made almost the same way to taste so differently. Having access to higher rated wines would also allow me to see if wines with rating above 9 follow the same trends with sulfur dioxide and chlorides as the ones I have analysed so far.
